@@ -1,4 +1,4 @@
-package com.example.hardwizchippy
+package com.kbitware.hardwizchippy
 
 import io.flutter.embedding.android.FlutterActivity
 
