@@ -43,6 +43,26 @@ class Cpu {
   final String? familyCodename;
   final List<CpuBenchmark>? benchmarks;
 
+  // New fields for enhanced data
+  final double? currentPrice;
+  final String? microarchitecture;
+  final String? coreStepping;
+  final double? multiplier;
+  final double? turboMultiplier;
+  final bool unlockedMultiplier;
+  final int? l1CacheInstruction;
+  final int? l1CacheData;
+  final String? fabProcessor;
+  final int? dataWidth;
+  final double? memoryBandwidth;
+  final bool eccSupported;
+  final int? graphicsBaseFreq;
+  final int? graphicsTurboFreq;
+  final String? graphicsCoreConfig;
+  final String? pcieConfig;
+  final CpuBenchmarks? structuredBenchmarks;
+  final List<GamingBenchmark>? gamingBenchmarks;
+
   Cpu({
     required this.id,
     required this.name,
@@ -87,6 +107,25 @@ class Cpu {
     this.familyName,
     this.familyCodename,
     this.benchmarks,
+    // New fields
+    this.currentPrice,
+    this.microarchitecture,
+    this.coreStepping,
+    this.multiplier,
+    this.turboMultiplier,
+    this.unlockedMultiplier = false,
+    this.l1CacheInstruction,
+    this.l1CacheData,
+    this.fabProcessor,
+    this.dataWidth,
+    this.memoryBandwidth,
+    this.eccSupported = false,
+    this.graphicsBaseFreq,
+    this.graphicsTurboFreq,
+    this.graphicsCoreConfig,
+    this.pcieConfig,
+    this.structuredBenchmarks,
+    this.gamingBenchmarks,
   });
 
   factory Cpu.fromJson(Map<String, dynamic> json) {
@@ -329,4 +368,85 @@ class PaginatedResponse<T> {
   });
 
   bool get hasMore => currentPage < totalPages;
+}
+
+/// Structured benchmark scores
+class CpuBenchmarks {
+  final int? cinebenchR23Single;
+  final int? cinebenchR23Multi;
+  final int? cinebenchR24Single;
+  final int? cinebenchR24Multi;
+  final int? geekbench6Single;
+  final int? geekbench6Multi;
+  final int? passmarkSingle;
+  final int? passmarkMulti;
+  final int? threeDMark;
+  final double? handbrakeVideo;
+  final int? sevenZipCompression;
+  final double? speedometerWeb;
+
+  CpuBenchmarks({
+    this.cinebenchR23Single,
+    this.cinebenchR23Multi,
+    this.cinebenchR24Single,
+    this.cinebenchR24Multi,
+    this.geekbench6Single,
+    this.geekbench6Multi,
+    this.passmarkSingle,
+    this.passmarkMulti,
+    this.threeDMark,
+    this.handbrakeVideo,
+    this.sevenZipCompression,
+    this.speedometerWeb,
+  });
+
+  factory CpuBenchmarks.fromJson(Map<String, dynamic> json) {
+    return CpuBenchmarks(
+      cinebenchR23Single: json['cinebench_r23_single'] as int?,
+      cinebenchR23Multi: json['cinebench_r23_multi'] as int?,
+      cinebenchR24Single: json['cinebench_r24_single'] as int?,
+      cinebenchR24Multi: json['cinebench_r24_multi'] as int?,
+      geekbench6Single: json['geekbench6_single'] as int?,
+      geekbench6Multi: json['geekbench6_multi'] as int?,
+      passmarkSingle: json['passmark_single'] as int?,
+      passmarkMulti: json['passmark_multi'] as int?,
+      threeDMark: json['3dmark'] as int?,
+      handbrakeVideo: (json['handbrake_video'] as num?)?.toDouble(),
+      sevenZipCompression: json['7zip_compression'] as int?,
+      speedometerWeb: (json['speedometer_web'] as num?)?.toDouble(),
+    );
+  }
+}
+
+/// Gaming benchmark data for a single game
+class GamingBenchmark {
+  final String gameName;
+  final String resolution;
+  final String? settings;
+  final double avgFps;
+  final double? onePercentLow;
+  final double? pointOnePercentLow;
+  final String? gpuUsed;
+
+  GamingBenchmark({
+    required this.gameName,
+    required this.resolution,
+    this.settings,
+    required this.avgFps,
+    this.onePercentLow,
+    this.pointOnePercentLow,
+    this.gpuUsed,
+  });
+
+  factory GamingBenchmark.fromJson(Map<String, dynamic> json) {
+    return GamingBenchmark(
+      gameName: json['game'] as String? ?? json['game_name'] as String,
+      resolution: json['resolution'] as String,
+      settings: json['settings'] as String?,
+      avgFps: (json['avg_fps'] as num).toDouble(),
+      onePercentLow: (json['1_low'] as num?)?.toDouble(),
+      pointOnePercentLow: (json['0.1_low'] as num?)?.toDouble(),
+      gpuUsed: json['gpu'] as String? ?? json['gpu_used'] as String?,
+    );
+  }
 }

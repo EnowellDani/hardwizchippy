@@ -26,20 +26,145 @@ class LocalDataService {
   }
 
   Cpu _parseCpuFromJson(Map<String, dynamic> json) {
+    // Support both nested (v2) and flat (v1) JSON formats
+    final general = json['general'] as Map<String, dynamic>?;
+    final coresData = json['cores'] as Map<String, dynamic>?;
+    final cache = json['cache'] as Map<String, dynamic>?;
+    final memory = json['memory'] as Map<String, dynamic>?;
+    final graphics = json['graphics'] as Map<String, dynamic>?;
+    final pcie = json['pcie'] as Map<String, dynamic>?;
+    final features = json['features'] as Map<String, dynamic>?;
+    final benchmarksData = json['benchmarks'] as Map<String, dynamic>?;
+    final gamingData = json['gaming'] as List?;
+
+    // Determine if this is v2 (nested) or v1 (flat) format
+    final isNested = general != null || coresData != null;
+
+    // Parse structured benchmarks if available
+    CpuBenchmarks? structuredBenchmarks;
+    if (benchmarksData != null) {
+      structuredBenchmarks = CpuBenchmarks.fromJson(benchmarksData);
+    }
+
+    // Parse gaming benchmarks if available
+    List<GamingBenchmark>? gamingBenchmarks;
+    if (gamingData != null) {
+      gamingBenchmarks = gamingData
+          .map((g) => GamingBenchmark.fromJson(g as Map<String, dynamic>))
+          .toList();
+    }
+
+    // Extract values with nested/flat fallback
+    String? getString(String nestedKey, String flatKey, [Map<String, dynamic>? nestedMap]) {
+      if (isNested && nestedMap != null) {
+        return nestedMap[nestedKey] as String?;
+      }
+      return json[flatKey] as String?;
+    }
+
+    int? getInt(String nestedKey, String flatKey, [Map<String, dynamic>? nestedMap]) {
+      if (isNested && nestedMap != null) {
+        return nestedMap[nestedKey] as int?;
+      }
+      return json[flatKey] as int?;
+    }
+
+    double? getDouble(String nestedKey, String flatKey, [Map<String, dynamic>? nestedMap]) {
+      if (isNested && nestedMap != null) {
+        final value = nestedMap[nestedKey];
+        return (value as num?)?.toDouble();
+      }
+      final value = json[flatKey];
+      return (value as num?)?.toDouble();
+    }
+
+    bool getBool(String nestedKey, String flatKey, bool defaultValue, [Map<String, dynamic>? nestedMap]) {
+      if (isNested && nestedMap != null) {
+        return nestedMap[nestedKey] as bool? ?? defaultValue;
+      }
+      return json[flatKey] as bool? ?? defaultValue;
+    }
+
     return Cpu(
-      id: json.hashCode, // Generate ID from hash since JSON doesn't have IDs
+      id: json['id'] as int? ?? json.hashCode,
       name: json['name'] as String? ?? 'Unknown',
-      codename: json['codename'] as String?,
-      cores: json['cores'] as int?,
-      threads: json['cores'] as int?, // Approximate threads = cores for now
-      baseClock: (json['base_clock'] as num?)?.toDouble(),
-      boostClock: (json['boost_clock'] as num?)?.toDouble(),
-      l3Cache: json['l3_cache'] as int?,
-      tdp: json['tdp'] as int?,
-      processNode: json['process_node'] as String?,
-      socketName: json['socket'] as String?,
-      launchDate: json['launch_date'] as String?,
-      manufacturerName: json['manufacturer'] as String?,
+      manufacturerName: json['manufacturer'] as String? ?? general?['manufacturer'] as String?,
+
+      // General info
+      codename: getString('codename', 'codename', coresData),
+      generation: json['generation'] as String?,
+      launchDate: getString('launch_date', 'launch_date', general),
+      launchMsrp: getDouble('launch_msrp', 'launch_msrp', general),
+      currentPrice: getDouble('current_price', 'current_price', general),
+      fabProcessor: getString('fab_processor', 'fab_processor', general),
+      processNode: getString('process_node', 'process_node', general),
+      transistorsMillion: getInt('transistors_million', 'transistors_million', general),
+      dieSizeMm2: getDouble('die_size_mm2', 'die_size_mm2', general),
+      tdp: getInt('tdp', 'tdp', general),
+      basePower: getInt('base_power', 'base_power', general),
+      maxTurboPower: getInt('max_turbo_power', 'max_turbo_power', general),
+      socketName: getString('socket', 'socket', general),
+
+      // Core info
+      microarchitecture: getString('microarchitecture', 'microarchitecture', coresData),
+      coreStepping: getString('stepping', 'stepping', coresData),
+      cores: getInt('cores', 'cores', coresData),
+      threads: getInt('threads', 'threads', coresData),
+      pCores: getInt('p_cores', 'p_cores', coresData),
+      eCores: getInt('e_cores', 'e_cores', coresData),
+      baseClock: getDouble('base_clock', 'base_clock', coresData),
+      boostClock: getDouble('boost_clock', 'boost_clock', coresData),
+      pCoreBaseClock: getDouble('p_core_base_clock', 'p_core_base_clock', coresData),
+      pCoreBoostClock: getDouble('p_core_boost_clock', 'p_core_boost_clock', coresData),
+      eCoreBaseClock: getDouble('e_core_base_clock', 'e_core_base_clock', coresData),
+      eCoreBoostClock: getDouble('e_core_boost_clock', 'e_core_boost_clock', coresData),
+      multiplier: getDouble('multiplier', 'multiplier', coresData),
+      turboMultiplier: getDouble('turbo_multiplier', 'turbo_multiplier', coresData),
+      unlockedMultiplier: getBool('unlocked', 'unlocked_multiplier', false, coresData),
+
+      // Cache
+      l1Cache: getInt('l1', 'l1_cache', cache),
+      l1CacheInstruction: getInt('l1_instruction', 'l1_cache_instruction', cache),
+      l1CacheData: getInt('l1_data', 'l1_cache_data', cache),
+      l2Cache: getInt('l2', 'l2_cache', cache),
+      l3Cache: getInt('l3', 'l3_cache', cache),
+
+      // Memory
+      memoryType: getString('type', 'memory_type', memory),
+      memoryBandwidth: getDouble('bandwidth', 'memory_bandwidth', memory),
+      memoryChannels: getInt('channels', 'memory_channels', memory),
+      maxMemoryGb: getInt('max_size', 'max_memory_gb', memory),
+      eccSupported: getBool('ecc', 'ecc_supported', false, memory),
+
+      // Graphics (iGPU)
+      hasIntegratedGpu: isNested
+          ? (graphics?['name'] as String?) != null
+          : json['has_integrated_gpu'] as bool? ?? false,
+      integratedGpuName: getString('name', 'integrated_gpu_name', graphics),
+      graphicsBaseFreq: getInt('base_freq', 'graphics_base_freq', graphics),
+      graphicsTurboFreq: getInt('turbo_freq', 'graphics_turbo_freq', graphics),
+      graphicsCoreConfig: getString('core_config', 'graphics_core_config', graphics),
+
+      // PCIe
+      pcieVersion: getString('revision', 'pcie_version', pcie),
+      pcieLanes: getInt('lanes', 'pcie_lanes', pcie),
+      pcieConfig: getString('config', 'pcie_config', pcie),
+
+      // Features
+      dataWidth: getInt('data_width', 'data_width', features),
+
+      // URLs and images
+      imageUrl: json['image_url'] as String?,
+      techpowerupUrl: json['techpowerup_url'] as String?,
+      manufacturerLogo: json['manufacturer_logo'] as String?,
+
+      // Status
+      isReleased: json['is_released'] as bool? ?? true,
+      isDiscontinued: json['is_discontinued'] as bool? ?? false,
+
+      // Benchmarks
+      structuredBenchmarks: structuredBenchmarks,
+      gamingBenchmarks: gamingBenchmarks,
     );
   }
 

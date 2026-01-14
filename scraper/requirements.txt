@@ -1,5 +1,23 @@
+# HardWizChippy Scraper Dependencies
+# Core
 requests>=2.31.0
 beautifulsoup4>=4.12.0
-mysql-connector-python>=8.0.0
 lxml>=5.0.0
+
+# Database
+mysql-connector-python>=8.0.0
+
+# JavaScript-rendered pages (Tom's Hardware)
+playwright>=1.40.0
+
+# Fuzzy matching
+python-Levenshtein>=0.21.0
+
+# Retry logic
+tenacity>=8.2.0
+
+# Progress bars
 tqdm>=4.66.0
+
+# Environment config
+python-dotenv>=1.0.0
