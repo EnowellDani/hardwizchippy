@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS cpus (
     id INT AUTO_INCREMENT PRIMARY KEY,
 
     -- Basic Info
-    name VARCHAR(150) NOT NULL,
+    name VARCHAR(150) NOT NULL UNIQUE,
     manufacturer_id INT NOT NULL,
     family_id INT,
     socket_id INT,
