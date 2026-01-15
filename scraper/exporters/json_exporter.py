@@ -1,7 +1,17 @@
 import json
 from datetime import datetime
 from pathlib import Path
+from decimal import Decimal
 import logging
+
+
+class DecimalEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle Decimal types from MySQL."""
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        return super().default(obj)
+
 
 class JsonExporter:
     def __init__(self, output_dir: str = None):
@@ -19,7 +29,7 @@ class JsonExporter:
         
         filepath = self.output_dir / filename
         with open(filepath, "w", encoding="utf-8") as f:
-            json.dump(output, f, indent=2, ensure_ascii=False)
+            json.dump(output, f, indent=2, ensure_ascii=False, cls=DecimalEncoder)
         
         self.logger.info(f"Exported {len(cpus)} CPUs to {filepath}")
         return filepath

@@ -12,6 +12,23 @@
 .swiftpm/
 migrate_working_dir/
 
+# Claude Code temp files
+tmpclaude-*
+**/tmpclaude-*
+nul
+
+# Claude settings (optional - remove if you want to track)
+.claude/
+
+# Scraper cache and output (regenerated on each run)
+scraper/data/
+scraper/*.log
+
+# Debug scripts (temporary)
+scraper/debug_*.py
+scraper/analyze_*.py
+scraper/fix_*.py
+
 # IntelliJ related
 *.iml
 *.ipr

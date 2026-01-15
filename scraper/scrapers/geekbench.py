@@ -23,13 +23,88 @@ class GeekbenchScraper(BaseScraper):
         self._cpu_names: List[str] = []
 
     def scrape_list(self) -> List[Dict[str, Any]]:
-        """Scrape Geekbench 6 processor chart."""
+        """Scrape Geekbench processor chart."""
         cpus = []
 
-        # Geekbench 6 CPU charts
+        # Geekbench processor benchmarks - main page has both single and multi scores
+        url = f'{self.BASE_URL}/processor-benchmarks'
+        self.logger.info(f'Scraping Geekbench from: {url}')
+        soup = self.get_soup(url)
+
+        if soup:
+            cpus = self._parse_processor_benchmarks(soup)
+
+        return cpus
+
+    def _parse_processor_benchmarks(self, soup) -> List[Dict[str, Any]]:
+        """Parse the processor benchmarks page."""
+        cpus = {}
+
+        # Find benchmark tables - they have class 'benchmark-chart-table'
+        tables = soup.select('table.benchmark-chart-table')
+        self.logger.info(f'Found {len(tables)} benchmark tables')
+
+        # Table 0 is single-core, Table 1 is multi-core (based on score ranges)
+        for table_idx, table in enumerate(tables):
+            # Determine score type based on table index
+            # Single-core scores are typically 2000-4000, multi-core 20000-40000
+            score_type = 'single' if table_idx == 0 else 'multi'
+            self.logger.info(f'Processing table {table_idx} as {score_type}-core')
+
+            rows = table.select('tr')
+            parsed_count = 0
+
+            for row in rows:
+                try:
+                    # Skip header rows
+                    if row.select('th'):
+                        continue
+
+                    # Find name cell (has class 'name') and score cell (has class 'score')
+                    name_cell = row.select_one('td.name')
+                    score_cell = row.select_one('td.score')
+
+                    if not name_cell or not score_cell:
+                        continue
+
+                    # Get CPU name from the link inside name cell
+                    name_link = name_cell.select_one('a')
+                    if not name_link:
+                        continue
+
+                    name = name_link.get_text(strip=True)
+                    score_text = score_cell.get_text(strip=True)
+                    score = self._parse_score(score_text)
+
+                    if not name or not score:
+                        continue
+
+                    # Use name as key to merge single and multi scores
+                    if name not in cpus:
+                        cpus[name] = {'name': name, 'source': 'geekbench'}
+
+                    if score_type == 'single':
+                        cpus[name]['geekbench6_single'] = score
+                    else:
+                        cpus[name]['geekbench6_multi'] = score
+
+                    parsed_count += 1
+
+                except Exception as e:
+                    self.logger.debug(f'Error parsing row: {e}')
+                    continue
+
+            self.logger.info(f'Parsed {parsed_count} entries from {score_type}-core table')
+
+        result = list(cpus.values())
+        self.logger.info(f'Total unique CPUs from Geekbench: {len(result)}')
+        return result
+
+    def scrape_list_old(self) -> List[Dict[str, Any]]:
+        """Old paginated scraping method (kept for reference)."""
+        cpus = []
         charts = [
             ('processor-benchmarks', 'multi'),
-            ('processor-benchmarks/single-core', 'single'),
         ]
 
         for chart_path, score_type in charts:
@@ -37,7 +112,7 @@ class GeekbenchScraper(BaseScraper):
             max_pages = 10
 
             while page <= max_pages:
-                url = f'{self.BASE_URL}/v6/cpu/{chart_path}?page={page}'
+                url = f'{self.BASE_URL}/{chart_path}?page={page}'
                 soup = self.get_soup(url)
 
                 if not soup:

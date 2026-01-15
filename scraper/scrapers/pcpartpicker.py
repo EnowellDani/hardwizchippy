@@ -1,30 +1,154 @@
 """
 PCPartPicker Price Scraper - Fetches current CPU prices
+Uses Playwright with stealth mode to bypass Cloudflare protection.
 """
 import re
 import logging
+import time
 from typing import Dict, List, Optional, Any
 from urllib.parse import quote_plus
+from bs4 import BeautifulSoup
 
 from core.base_scraper import BaseScraper
 from core.cpu_matcher import CpuMatcher
 from exporters.database import get_db
 
+# Try Playwright for JS-rendered content with anti-bot bypass
+try:
+    from playwright.sync_api import sync_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+
+# Try playwright-stealth for better anti-detection
+try:
+    from playwright_stealth import stealth_sync
+    STEALTH_AVAILABLE = True
+except ImportError:
+    STEALTH_AVAILABLE = False
+
 
 class PCPartPickerScraper(BaseScraper):
-    """Scrapes current CPU prices from PCPartPicker."""
+    """
+    Scrapes current CPU prices from PCPartPicker.
+
+    NOTE: PCPartPicker uses aggressive Cloudflare protection that blocks
+    automated scraping. This scraper may return 0 results in headless mode.
+    Consider using alternative pricing sources:
+    - Newegg API
+    - Amazon Product Advertising API
+    - Manual data entry via GUI browser session
+    """
 
     SOURCE_NAME = 'pcpartpicker'
     BASE_URL = 'https://pcpartpicker.com'
 
-    def __init__(self):
+    def __init__(self, use_playwright: bool = True):
         super().__init__(self.SOURCE_NAME)
         self.matcher = CpuMatcher()
         self.db = get_db()
         self._cpu_names: List[str] = []
+        self.use_playwright = use_playwright and PLAYWRIGHT_AVAILABLE
 
     def scrape_list(self) -> List[Dict[str, Any]]:
         """Scrape CPU listings from PCPartPicker."""
+        if self.use_playwright:
+            return self._scrape_with_playwright()
+        else:
+            return self._scrape_with_requests()
+
+    def _scrape_with_playwright(self) -> List[Dict[str, Any]]:
+        """Use Playwright with stealth mode to scrape PCPartPicker."""
+        cpus = []
+
+        with sync_playwright() as p:
+            # Launch browser with stealth options
+            browser = p.chromium.launch(
+                headless=True,
+                args=[
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-features=IsolateOrigins,site-per-process',
+                    '--no-sandbox',
+                    '--disable-setuid-sandbox',
+                ]
+            )
+
+            # Create context with realistic browser profile
+            context = browser.new_context(
+                viewport={'width': 1920, 'height': 1080},
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                locale='en-US',
+                timezone_id='America/New_York',
+                color_scheme='light',
+                java_script_enabled=True,
+            )
+
+            page = context.new_page()
+
+            # Apply playwright-stealth if available
+            if STEALTH_AVAILABLE:
+                stealth_sync(page)
+                self.logger.info("Applied playwright-stealth to page")
+
+            page_num = 1
+            max_pages = 15  # Safety limit
+
+            while page_num <= max_pages:
+                try:
+                    url = f'{self.BASE_URL}/products/cpu/#page={page_num}'
+                    self.logger.info(f"Loading page {page_num}: {url}")
+
+                    page.goto(url, wait_until='domcontentloaded', timeout=60000)
+
+                    # Wait for the page to stabilize
+                    page.wait_for_timeout(3000)
+
+                    # Check for Cloudflare challenge
+                    html = page.content()
+                    if 'challenge' in html.lower() and 'cloudflare' in html.lower():
+                        self.logger.info("Cloudflare challenge detected, waiting...")
+                        page.wait_for_timeout(10000)
+                        html = page.content()
+
+                    soup = BeautifulSoup(html, 'lxml')
+
+                    # Find product rows
+                    rows = soup.select('tr.tr__product')
+                    if not rows:
+                        self.logger.info(f'No products found at page {page_num}')
+                        break
+
+                    self.logger.info(f"Found {len(rows)} products on page {page_num}")
+
+                    for row in rows:
+                        try:
+                            cpu_data = self._parse_product_row(row)
+                            if cpu_data:
+                                cpus.append(cpu_data)
+                        except Exception as e:
+                            self.logger.warning(f'Error parsing row: {e}')
+
+                    # Check for next page button
+                    next_btn = soup.select_one('a.pagination__next:not(.pagination__next--disabled)')
+                    if not next_btn:
+                        self.logger.info("No more pages available")
+                        break
+
+                    page_num += 1
+                    # Add delay to avoid rate limiting
+                    time.sleep(2)
+
+                except Exception as e:
+                    self.logger.error(f"Error on page {page_num}: {e}")
+                    break
+
+            browser.close()
+
+        self.logger.info(f"Total CPUs scraped from PCPartPicker: {len(cpus)}")
+        return cpus
+
+    def _scrape_with_requests(self) -> List[Dict[str, Any]]:
+        """Fallback to requests-based scraping (may be blocked)."""
         cpus = []
         page = 1
         max_pages = 20  # Safety limit

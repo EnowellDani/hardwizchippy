@@ -1,5 +1,5 @@
 """
-PassMark CPU Benchmark Scraper
+PassMark CPU Benchmark Scraper - Enhanced with Playwright
 """
 import re
 import logging
@@ -9,6 +9,13 @@ from core.base_scraper import BaseScraper
 from core.cpu_matcher import CpuMatcher
 from exporters.database import get_db
 
+# Try Playwright for JS-rendered content
+try:
+    from playwright.sync_api import sync_playwright
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    PLAYWRIGHT_AVAILABLE = False
+
 
 class PassMarkScraper(BaseScraper):
     """Scrapes CPU benchmark scores from PassMark/cpubenchmark.net."""
@@ -16,17 +23,112 @@ class PassMarkScraper(BaseScraper):
     SOURCE_NAME = 'passmark'
     BASE_URL = 'https://www.cpubenchmark.net'
 
-    def __init__(self):
+    def __init__(self, use_playwright: bool = True):
         super().__init__(self.SOURCE_NAME)
         self.matcher = CpuMatcher()
         self.db = get_db()
         self._cpu_names: List[str] = []
+        self.use_playwright = use_playwright and PLAYWRIGHT_AVAILABLE
 
     def scrape_list(self) -> List[Dict[str, Any]]:
         """Scrape CPU benchmark charts."""
+        if self.use_playwright:
+            return self._scrape_with_playwright()
+        else:
+            return self._scrape_with_requests()
+
+    def _scrape_with_playwright(self) -> List[Dict[str, Any]]:
+        """Use Playwright to scrape PassMark charts."""
+        cpus = {}
+
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            page = context.new_page()
+
+            # Scrape multi-core chart from cpu_list.php (uses table#cputable)
+            self.logger.info("Scraping PassMark multi-core chart...")
+            page.goto(f"{self.BASE_URL}/cpu_list.php", wait_until="domcontentloaded", timeout=90000)
+            page.wait_for_timeout(5000)  # Wait for JS to render table
+
+            # Parse the HTML with BeautifulSoup for more reliable extraction
+            from bs4 import BeautifulSoup
+            html = page.content()
+            soup = BeautifulSoup(html, 'lxml')
+
+            table = soup.find('table', id='cputable')
+            if table:
+                tbody = table.find('tbody')
+                if tbody:
+                    rows = tbody.find_all('tr')
+                    self.logger.info(f"Found {len(rows)} rows in multi-core table")
+
+                    for row in rows:
+                        try:
+                            cells = row.find_all('td')
+                            if len(cells) >= 2:
+                                name_cell = cells[0]
+                                score_cell = cells[1]
+
+                                link = name_cell.find('a')
+                                if link:
+                                    name = link.get_text(strip=True)
+                                    score_text = score_cell.get_text(strip=True)
+                                    score = self._parse_score(score_text)
+
+                                    if name and score:
+                                        if name not in cpus:
+                                            cpus[name] = {'name': name, 'source': 'passmark'}
+                                        cpus[name]['passmark_multi'] = score
+                        except Exception as e:
+                            continue
+            else:
+                self.logger.warning("Could not find cputable on multi-core page")
+
+            self.logger.info(f"Multi-core entries: {len(cpus)}")
+
+            # Scrape single-core chart from singleThread.html (uses ul.chartlist)
+            self.logger.info("Scraping PassMark single-core chart...")
+            page.goto(f"{self.BASE_URL}/singleThread.html", wait_until="domcontentloaded", timeout=90000)
+            page.wait_for_timeout(5000)
+
+            html = page.content()
+            soup = BeautifulSoup(html, 'lxml')
+
+            chartlist = soup.select('ul.chartlist li')
+            self.logger.info(f"Found {len(chartlist)} items in single-core chart")
+
+            single_count = 0
+            for item in chartlist:
+                try:
+                    name_elem = item.select_one('span.prdname')
+                    score_elem = item.select_one('span.count')
+
+                    if name_elem and score_elem:
+                        name = name_elem.get_text(strip=True)
+                        score_text = score_elem.get_text(strip=True)
+                        score = self._parse_score(score_text)
+
+                        if name and score:
+                            if name not in cpus:
+                                cpus[name] = {'name': name, 'source': 'passmark'}
+                            cpus[name]['passmark_single'] = score
+                            single_count += 1
+                except Exception as e:
+                    continue
+
+            self.logger.info(f"Single-core entries added: {single_count}")
+            browser.close()
+
+        self.logger.info(f"Total unique CPUs scraped from PassMark: {len(cpus)}")
+        return list(cpus.values())
+
+    def _scrape_with_requests(self) -> List[Dict[str, Any]]:
+        """Fallback to requests-based scraping."""
         cpus = []
 
-        # Scrape the main CPU chart
         charts = [
             ('cpu_list.php', 'multi'),
             ('singleThread.html', 'single'),
@@ -40,14 +142,17 @@ class PassMarkScraper(BaseScraper):
                 self.logger.warning(f'Failed to fetch {chart_url}')
                 continue
 
-            # Find chart rows
-            chart_list = soup.select('ul.chartlist li')
+            # Try multiple selectors
+            chart_items = (
+                soup.select('ul.chartlist li') or
+                soup.select('table#cputable tbody tr') or
+                soup.select('div.chart_body li')
+            )
 
-            for item in chart_list:
+            for item in chart_items:
                 try:
                     cpu_data = self._parse_chart_item(item, score_type)
                     if cpu_data:
-                        # Merge with existing if already scraped
                         existing = next(
                             (c for c in cpus if c['name'] == cpu_data['name']),
                             None
@@ -64,15 +169,21 @@ class PassMarkScraper(BaseScraper):
     def _parse_chart_item(self, item, score_type: str) -> Optional[Dict[str, Any]]:
         """Parse a chart list item."""
         try:
-            # Get CPU name
-            name_elem = item.select_one('span.prdname')
+            name_elem = (
+                item.select_one('span.prdname') or
+                item.select_one('td:first-child a') or
+                item.select_one('a.name')
+            )
             if not name_elem:
                 return None
 
             name = name_elem.get_text(strip=True)
 
-            # Get score
-            score_elem = item.select_one('span.count')
+            score_elem = (
+                item.select_one('span.count') or
+                item.select_one('td:nth-child(2)') or
+                item.select_one('span.score')
+            )
             score = None
             if score_elem:
                 score_text = score_elem.get_text(strip=True)
@@ -82,7 +193,6 @@ class PassMarkScraper(BaseScraper):
                 return None
 
             result = {'name': name, 'source': 'passmark'}
-
             if score_type == 'multi':
                 result['passmark_multi'] = score
             else:
@@ -90,7 +200,6 @@ class PassMarkScraper(BaseScraper):
 
             return result
         except Exception as e:
-            self.logger.warning(f'Error parsing chart item: {e}')
             return None
 
     def _parse_score(self, score_text: str) -> Optional[int]:
@@ -98,7 +207,6 @@ class PassMarkScraper(BaseScraper):
         if not score_text:
             return None
 
-        # Remove commas and non-numeric chars
         clean = re.sub(r'[^\d]', '', score_text)
         try:
             return int(clean) if clean else None
@@ -112,8 +220,6 @@ class PassMarkScraper(BaseScraper):
             return None
 
         result = {}
-
-        # Find score tables
         score_tables = soup.select('table.desc')
         for table in score_tables:
             rows = table.select('tr')
@@ -134,11 +240,9 @@ class PassMarkScraper(BaseScraper):
         """Run PassMark scraper and update database."""
         self.logger.info('Starting PassMark benchmark scrape')
 
-        # Load CPU names
         self._cpu_names = self.db.get_all_cpu_names()
         self.logger.info(f'Loaded {len(self._cpu_names)} CPU names')
 
-        # Scrape benchmarks
         benchmarks = self.scrape_list()
         self.logger.info(f'Found {len(benchmarks)} benchmark entries')
 
@@ -191,7 +295,7 @@ def main():
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    scraper = PassMarkScraper()
+    scraper = PassMarkScraper(use_playwright=True)
     result = scraper.run()
     print(f'Result: {result}')
 

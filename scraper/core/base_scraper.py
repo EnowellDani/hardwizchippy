@@ -178,12 +178,12 @@ class BaseScraper(ABC):
             self.logger.warning("Scraping interrupted by user")
         
         finally:
-            elapsed = (datetime.now() - self.stats["start_time"]).total_seconds()
+            elapsed = (datetime.now() - self.stats['start_time']).total_seconds()
             self.logger.info(
-                f"Completed: {self.stats["items_processed"]} items, "
-                f"{self.stats["requests"]} requests, "
-                f"{self.stats["cache_hits"]} cache hits, "
-                f"{self.stats["errors"]} errors, "
+                f"Completed: {self.stats['items_processed']} items, "
+                f"{self.stats['requests']} requests, "
+                f"{self.stats['cache_hits']} cache hits, "
+                f"{self.stats['errors']} errors, "
                 f"{elapsed:.1f}s elapsed"
             )
         
