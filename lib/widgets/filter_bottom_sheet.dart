@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/cpu_provider.dart';
 
+import '../providers/providers.dart';
+
+/// Bottom sheet for filtering CPU list
 class FilterBottomSheet extends StatefulWidget {
   const FilterBottomSheet({super.key});
 

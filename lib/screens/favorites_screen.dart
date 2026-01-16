@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/cpu_provider.dart';
-import '../widgets/cpu_card.dart';
+
+import '../providers/providers.dart';
+import '../widgets/widgets.dart';
 import 'cpu_detail_screen.dart';
 
 class FavoritesScreen extends StatelessWidget {

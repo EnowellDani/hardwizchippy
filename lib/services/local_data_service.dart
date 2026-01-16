@@ -1,7 +1,10 @@
 import 'dart:convert';
-import 'package:flutter/services.dart';
-import '../models/cpu.dart';
 
+import 'package:flutter/services.dart';
+
+import '../models/models.dart';
+
+/// Service for loading and managing local CPU data from assets
 class LocalDataService {
   static final LocalDataService _instance = LocalDataService._internal();
   factory LocalDataService() => _instance;

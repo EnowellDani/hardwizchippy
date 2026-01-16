@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../config/theme.dart';
-import '../models/cpu.dart';
-import '../providers/cpu_provider.dart';
+
+import '../core/core.dart';
+import '../models/models.dart';
+import '../providers/providers.dart';
 
 class CpuDetailScreen extends StatefulWidget {
   final int cpuId;
@@ -64,7 +65,7 @@ class _CpuDetailScreenState extends State<CpuDetailScreen> {
   }
 
   Widget _buildContent(BuildContext context, Cpu cpu, CpuProvider provider) {
-    final manufacturerColor = AppTheme.getManufacturerColor(
+    final manufacturerColor = AppColors.getManufacturerColor(
       cpu.manufacturerName ?? '',
     );
 

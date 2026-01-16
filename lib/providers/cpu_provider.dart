@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/cpu.dart';
-import '../services/local_data_service.dart';
 
+import '../models/models.dart';
+import '../services/services.dart';
+
+/// State enumeration for loading operations
 enum LoadingState { initial, loading, loaded, error }
 
+/// Provider for managing CPU data and state
 class CpuProvider with ChangeNotifier {
   final LocalDataService _dataService = LocalDataService();
 

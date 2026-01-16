@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'config/theme.dart';
-import 'providers/cpu_provider.dart';
-import 'providers/theme_provider.dart';
-import 'screens/home_screen.dart';
+
+import 'core/core.dart';
+import 'providers/providers.dart';
+import 'screens/screens.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();

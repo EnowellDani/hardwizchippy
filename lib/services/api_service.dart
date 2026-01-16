@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import '../config/api_config.dart';
-import '../models/cpu.dart';
 
+import '../core/core.dart';
+import '../models/models.dart';
+
+/// Custom exception for API errors
 class ApiException implements Exception {
   final String message;
   final int? statusCode;
@@ -15,6 +18,7 @@ class ApiException implements Exception {
   String toString() => message;
 }
 
+/// Service for handling API requests
 class ApiService {
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
@@ -22,12 +26,12 @@ class ApiService {
 
   String get baseUrl {
     if (kIsWeb) {
-      return ApiConfig.baseUrl;
+      return ApiConstants.baseUrl;
     }
     if (Platform.isAndroid) {
-      return ApiConfig.androidEmulatorUrl;
+      return ApiConstants.androidEmulatorUrl;
     }
-    return ApiConfig.baseUrl;
+    return ApiConstants.baseUrl;
   }
 
   Future<Map<String, dynamic>> _get(String endpoint,
@@ -39,7 +43,7 @@ class ApiService {
 
       final response = await http
           .get(uri)
-          .timeout(ApiConfig.connectionTimeout);
+          .timeout(ApiConstants.connectionTimeout);
 
       if (response.statusCode == 200) {
         return json.decode(response.body) as Map<String, dynamic>;
@@ -104,7 +108,7 @@ class ApiService {
       queryParams['has_igpu'] = hasIgpu.toString();
     }
 
-    final response = await _get(ApiConfig.cpusEndpoint, queryParams: queryParams);
+    final response = await _get(ApiConstants.cpusEndpoint, queryParams: queryParams);
 
     final data = (response['data'] as List)
         .map((json) => Cpu.fromJson(json))
@@ -122,7 +126,7 @@ class ApiService {
   }
 
   Future<Cpu> getCpuById(int id) async {
-    final response = await _get('${ApiConfig.cpusEndpoint}/$id');
+    final response = await _get('${ApiConstants.cpusEndpoint}/$id');
     return Cpu.fromJson(response['data']);
   }
 
@@ -138,7 +142,7 @@ class ApiService {
     };
 
     final response =
-        await _get('${ApiConfig.cpusEndpoint}/search', queryParams: queryParams);
+        await _get('${ApiConstants.cpusEndpoint}/search', queryParams: queryParams);
 
     final data = (response['data'] as List)
         .map((json) => Cpu.fromJson(json))
@@ -158,7 +162,7 @@ class ApiService {
   // Manufacturer Endpoints
 
   Future<List<Manufacturer>> getManufacturers() async {
-    final response = await _get(ApiConfig.manufacturersEndpoint);
+    final response = await _get(ApiConstants.manufacturersEndpoint);
     return (response['data'] as List)
         .map((json) => Manufacturer.fromJson(json))
         .toList();
@@ -173,7 +177,7 @@ class ApiService {
     }
 
     final response =
-        await _get(ApiConfig.socketsEndpoint, queryParams: queryParams);
+        await _get(ApiConstants.socketsEndpoint, queryParams: queryParams);
     return (response['data'] as List)
         .map((json) => Socket.fromJson(json))
         .toList();
@@ -188,7 +192,7 @@ class ApiService {
     }
 
     final response =
-        await _get(ApiConfig.familiesEndpoint, queryParams: queryParams);
+        await _get(ApiConstants.familiesEndpoint, queryParams: queryParams);
     return (response['data'] as List)
         .map((json) => CpuFamily.fromJson(json))
         .toList();
@@ -198,7 +202,7 @@ class ApiService {
 
   Future<bool> healthCheck() async {
     try {
-      final response = await _get(ApiConfig.healthEndpoint);
+      final response = await _get(ApiConstants.healthEndpoint);
       return response['status'] == 'ok';
     } catch (e) {
       return false;

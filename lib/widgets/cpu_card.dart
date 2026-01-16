@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../config/theme.dart';
-import '../models/cpu.dart';
-import '../providers/cpu_provider.dart';
 
+import '../core/core.dart';
+import '../models/models.dart';
+import '../providers/providers.dart';
+
+/// Clean, CPU-L style CPU card with performance optimizations
 class CpuCard extends StatelessWidget {
   final Cpu cpu;
   final VoidCallback? onTap;
@@ -16,130 +18,87 @@ class CpuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final manufacturerColor = AppTheme.getManufacturerColor(
+    return RepaintBoundary(
+      child: _CpuCardContent(cpu: cpu, onTap: onTap),
+    );
+  }
+}
+
+class _CpuCardContent extends StatelessWidget {
+  final Cpu cpu;
+  final VoidCallback? onTap;
+
+  const _CpuCardContent({required this.cpu, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final manufacturerColor = AppColors.getManufacturerColor(
       cpu.manufacturerName ?? '',
     );
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: isDark ? 0 : 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: isDark
+            ? BorderSide(color: Colors.grey.shade800, width: 1)
+            : BorderSide.none,
+      ),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
+          padding: const EdgeInsets.all(14),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header row with name and favorite button
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Manufacturer indicator
-                  Container(
-                    width: 4,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: manufacturerColor,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // CPU name and details
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          cpu.name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${cpu.manufacturerName ?? ''} ${cpu.socketName != null ? '• ${cpu.socketName}' : ''}',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Favorite button
-                  Consumer<CpuProvider>(
-                    builder: (context, provider, child) {
-                      final isFavorite = provider.isFavorite(cpu.id);
-                      return IconButton(
-                        icon: Icon(
-                          isFavorite ? Icons.favorite : Icons.favorite_outline,
-                          color: isFavorite ? Colors.red : Colors.grey,
-                        ),
-                        onPressed: () => provider.toggleFavorite(cpu.id),
-                      );
-                    },
-                  ),
-                ],
+              // Manufacturer color bar
+              Container(
+                width: 4,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: manufacturerColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
+              const SizedBox(width: 12),
 
-              const SizedBox(height: 12),
-
-              // Specs row
-              Row(
-                children: [
-                  _buildSpecChip(
-                    icon: Icons.memory,
-                    label: cpu.coreThreadString,
-                  ),
-                  const SizedBox(width: 8),
-                  if (cpu.boostClock != null)
-                    _buildSpecChip(
-                      icon: Icons.speed,
-                      label: cpu.formattedBoostClock,
-                    ),
-                  const SizedBox(width: 8),
-                  if (cpu.tdp != null)
-                    _buildSpecChip(
-                      icon: Icons.bolt,
-                      label: '${cpu.tdp}W',
-                    ),
-                ],
-              ),
-
-              // Additional info row
-              if (cpu.processNode != null || cpu.l3Cache != null) ...[
-                const SizedBox(height: 8),
-                Row(
+              // Main content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (cpu.processNode != null)
-                      _buildInfoChip(cpu.processNode!),
-                    if (cpu.l3Cache != null) ...[
-                      const SizedBox(width: 8),
-                      _buildInfoChip('L3: ${cpu.formattedL3Cache}'),
-                    ],
-                    if (cpu.hasIntegratedGpu) ...[
-                      const SizedBox(width: 8),
-                      _buildInfoChip('iGPU'),
+                    // CPU Name
+                    Text(
+                      cpu.name,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.white : Colors.black87,
+                        height: 1.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Specs row
+                    _buildSpecsRow(context, isDark),
+
+                    // Additional info
+                    if (_hasAdditionalInfo) ...[
+                      const SizedBox(height: 8),
+                      _buildInfoRow(context, isDark),
                     ],
                   ],
                 ),
-              ],
+              ),
 
-              // Price if available
-              if (cpu.launchMsrp != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  'MSRP: \$${cpu.launchMsrp!.toStringAsFixed(0)}',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.green.shade700,
-                  ),
-                ),
-              ],
+              // Favorite button
+              _FavoriteButton(cpuId: cpu.id),
             ],
           ),
         ),
@@ -147,43 +106,127 @@ class CpuCard extends StatelessWidget {
     );
   }
 
-  Widget _buildSpecChip({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.grey.shade100,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: Colors.grey.shade700),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey.shade700,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
+  Widget _buildSpecsRow(BuildContext context, bool isDark) {
+    final textColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+    final specs = <String>[];
+
+    if (cpu.cores != null) {
+      specs.add('${cpu.cores}C${cpu.threads != null && cpu.threads != cpu.cores ? "/${cpu.threads}T" : ""}');
+    }
+
+    if (cpu.boostClock != null) {
+      final ghz = cpu.boostClock! / 1000;
+      specs.add('${ghz.toStringAsFixed(1)} GHz');
+    }
+
+    if (cpu.tdp != null) {
+      specs.add('${cpu.tdp}W');
+    }
+
+    return Text(
+      specs.join(' • '),
+      style: TextStyle(
+        fontSize: 13,
+        color: textColor,
+        fontWeight: FontWeight.w500,
       ),
     );
   }
 
-  Widget _buildInfoChip(String label) {
+  Widget _buildInfoRow(BuildContext context, bool isDark) {
+    final chipBg = isDark
+        ? Colors.grey.shade800
+        : Colors.grey.shade100;
+    final chipFg = isDark
+        ? Colors.grey.shade400
+        : Colors.grey.shade700;
+
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: [
+        if (cpu.processNode != null)
+          _InfoChip(label: cpu.processNode!, bgColor: chipBg, fgColor: chipFg),
+        if (cpu.l3Cache != null)
+          _InfoChip(label: cpu.formattedL3Cache, bgColor: chipBg, fgColor: chipFg),
+        if (cpu.socketName != null && cpu.socketName!.isNotEmpty)
+          _InfoChip(label: cpu.socketName!, bgColor: chipBg, fgColor: chipFg),
+        if (cpu.hasIntegratedGpu)
+          _InfoChip(
+            label: 'iGPU',
+            bgColor: isDark ? Colors.green.shade900.withValues(alpha: 0.5) : Colors.green.shade50,
+            fgColor: isDark ? Colors.green.shade300 : Colors.green.shade700,
+          ),
+      ],
+    );
+  }
+
+  bool get _hasAdditionalInfo =>
+      cpu.processNode != null ||
+      cpu.l3Cache != null ||
+      (cpu.socketName != null && cpu.socketName!.isNotEmpty) ||
+      cpu.hasIntegratedGpu;
+}
+
+/// Optimized favorite button with Selector
+class _FavoriteButton extends StatelessWidget {
+  final int cpuId;
+
+  const _FavoriteButton({required this.cpuId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Selector<CpuProvider, bool>(
+      selector: (_, provider) => provider.isFavorite(cpuId),
+      builder: (context, isFavorite, child) {
+        return GestureDetector(
+          onTap: () => context.read<CpuProvider>().toggleFavorite(cpuId),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(scale: animation, child: child);
+              },
+              child: Icon(
+                isFavorite ? Icons.favorite_rounded : Icons.favorite_outline_rounded,
+                key: ValueKey(isFavorite),
+                color: isFavorite ? Colors.red.shade400 : Colors.grey.shade400,
+                size: 22,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Small info chip
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final Color bgColor;
+  final Color fgColor;
+
+  const _InfoChip({
+    required this.label,
+    required this.bgColor,
+    required this.fgColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
-        borderRadius: BorderRadius.circular(6),
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 11,
-          color: Colors.blue.shade700,
+          color: fgColor,
           fontWeight: FontWeight.w500,
         ),
       ),
