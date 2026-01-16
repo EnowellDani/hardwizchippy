@@ -1,18 +1,31 @@
--- HardWizChippy CPU Database Schema
--- Database: hardwizchippy
+-- HardWizChippy CPU Database Schema v4
+-- Complete schema for comprehensive CPU data
+-- ============================================
 
 CREATE DATABASE IF NOT EXISTS hardwizchippy;
 USE hardwizchippy;
 
--- Manufacturers table
+-- ============================================
+-- LOOKUP TABLES
+-- ============================================
+
 CREATE TABLE IF NOT EXISTS manufacturers (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(50) NOT NULL UNIQUE,
     logo_url VARCHAR(255),
+    website_url VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- CPU Families/Series table
+CREATE TABLE IF NOT EXISTS sockets (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    manufacturer_id INT NOT NULL,
+    release_year INT,
+    description TEXT,
+    FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id)
+);
+
 CREATE TABLE IF NOT EXISTS cpu_families (
     id INT AUTO_INCREMENT PRIMARY KEY,
     manufacturer_id INT NOT NULL,
@@ -22,232 +35,273 @@ CREATE TABLE IF NOT EXISTS cpu_families (
     FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id)
 );
 
--- Sockets table
-CREATE TABLE IF NOT EXISTS sockets (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(50) NOT NULL UNIQUE,
-    manufacturer_id INT NOT NULL,
-    release_year INT,
-    FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id)
-);
+-- ============================================
+-- MAIN CPU TABLE
+-- ============================================
 
--- Main CPUs table
 CREATE TABLE IF NOT EXISTS cpus (
     id INT AUTO_INCREMENT PRIMARY KEY,
-
-    -- Basic Info
+    
+    -- ===========================================
+    -- MAIN VIEW (Big header section)
+    -- ===========================================
     name VARCHAR(150) NOT NULL UNIQUE,
+    max_frequency DECIMAL(6,2),              -- Max turbo/boost (GHz)
+    total_cache INT,                         -- Total cache (KB)
+    
+    -- ===========================================
+    -- GENERAL INFORMATION
+    -- ===========================================
     manufacturer_id INT NOT NULL,
     family_id INT,
     socket_id INT,
-
-    -- Codename & Generation
-    codename VARCHAR(100),
-    generation VARCHAR(50),
-
-    -- Core Configuration
-    cores INT,
-    threads INT,
-    p_cores INT NULL,  -- For hybrid architectures (Intel 12th gen+)
-    e_cores INT NULL,  -- Efficiency cores
-
-    -- Clock Speeds (in MHz)
-    base_clock DECIMAL(6,2),
-    boost_clock DECIMAL(6,2),
-    p_core_base_clock DECIMAL(6,2) NULL,
-    p_core_boost_clock DECIMAL(6,2) NULL,
-    e_core_base_clock DECIMAL(6,2) NULL,
-    e_core_boost_clock DECIMAL(6,2) NULL,
-
-    -- Cache (in KB)
-    l1_cache INT,
-    l2_cache INT,
-    l3_cache INT,
-
-    -- Power
-    tdp INT,  -- Thermal Design Power in Watts
-    base_power INT NULL,  -- Base power (Intel)
-    max_turbo_power INT NULL,  -- Maximum turbo power
-
-    -- Manufacturing
-    process_node VARCHAR(20),  -- e.g., "7nm", "10nm", "Intel 7"
-    transistors_million INT,
-    die_size_mm2 DECIMAL(6,2),
-
-    -- Memory Support
-    memory_type VARCHAR(100),  -- e.g., "DDR4-3200, DDR5-5600"
-    memory_channels INT,
-    max_memory_gb INT,
-
-    -- Features
-    has_integrated_gpu BOOLEAN DEFAULT FALSE,
-    integrated_gpu_name VARCHAR(100),
-    pcie_version VARCHAR(10),
-    pcie_lanes INT,
-
-    -- Release Info
     launch_date DATE,
-    launch_msrp DECIMAL(10,2),
-
-    -- Status
+    launch_msrp DECIMAL(10,2),               -- Launch price USD
+    current_price DECIMAL(10,2),             -- Current US price
+    price_updated_at TIMESTAMP,
+    
+    -- Fabrication
+    process_node VARCHAR(30),                -- e.g., "7nm", "Intel 7", "TSMC N5"
+    fab_details VARCHAR(100),                -- e.g., "TSMC 5nm FinFET"
+    transistors_million INT,                 -- Transistor count
+    die_size_mm2 DECIMAL(8,2),               -- Die size in mm²
+    cpu_package_size VARCHAR(50),            -- Physical package size
+    
+    -- Power
+    tdp INT,                                 -- TDP in Watts
+    base_power INT,                          -- Base power (Intel PBP)
+    max_turbo_power INT,                     -- Max turbo power (Intel MTP)
+    
+    -- Multi-chip
+    is_mcm BOOLEAN DEFAULT FALSE,            -- Is Multi-Chip Module?
+    mcm_chiplet_count INT,                   -- Number of chiplets
+    mcm_config VARCHAR(100),                 -- MCM configuration details
+    
+    -- ===========================================
+    -- CORE INFORMATION
+    -- ===========================================
+    microarchitecture VARCHAR(50),           -- e.g., "Zen 4", "Raptor Lake"
+    codename VARCHAR(100),                   -- e.g., "Raphael", "Raptor Lake-S"
+    core_stepping VARCHAR(20),               -- e.g., "B0", "C0"
+    generation VARCHAR(50),                  -- e.g., "13th Gen", "Ryzen 7000"
+    
+    -- Core counts
+    cores INT,                               -- Total cores
+    threads INT,                             -- Total threads
+    p_cores INT,                             -- Performance cores (hybrid)
+    e_cores INT,                             -- Efficiency cores (hybrid)
+    
+    -- Frequencies (GHz)
+    base_clock DECIMAL(6,2),                 -- Base frequency
+    boost_clock DECIMAL(6,2),                -- Boost/Turbo frequency
+    p_core_base_clock DECIMAL(6,2),          -- P-core base (hybrid)
+    p_core_boost_clock DECIMAL(6,2),         -- P-core boost (hybrid)
+    e_core_base_clock DECIMAL(6,2),          -- E-core base (hybrid)
+    e_core_boost_clock DECIMAL(6,2),         -- E-core boost (hybrid)
+    
+    -- Cache (in KB)
+    l1_cache_instruction INT,                -- L1 instruction cache
+    l1_cache_data INT,                       -- L1 data cache
+    l1_cache INT,                            -- L1 total (if not split)
+    l2_cache INT,                            -- L2 cache per core
+    l2_cache_total INT,                      -- L2 total
+    l3_cache INT,                            -- L3 cache total
+    
+    -- Multipliers
+    base_multiplier DECIMAL(6,2),            -- Base multiplier
+    turbo_multiplier DECIMAL(6,2),           -- Turbo multiplier
+    unlocked_multiplier BOOLEAN DEFAULT FALSE, -- Is overclockable?
+    
+    -- ===========================================
+    -- FEATURES
+    -- ===========================================
+    data_width INT,                          -- e.g., 64
+    scalability VARCHAR(50),                 -- e.g., "1S", "2S", "4S"
+    bus_type VARCHAR(50),                    -- e.g., "DMI 4.0", "Infinity Fabric"
+    bus_frequency VARCHAR(50),               -- Bus speed
+    instruction_set VARCHAR(100),            -- e.g., "x86-64-v4"
+    features TEXT,                           -- Comma-separated features (AVX-512, etc.)
+    
+    -- ===========================================
+    -- MEMORY
+    -- ===========================================
+    memory_type VARCHAR(100),                -- e.g., "DDR5-5600, DDR4-3200"
+    memory_bandwidth DECIMAL(10,2),          -- Max bandwidth GB/s
+    memory_channels INT,                     -- Number of channels
+    max_memory_gb INT,                       -- Maximum memory size
+    ecc_support BOOLEAN DEFAULT FALSE,       -- ECC memory support
+    
+    -- ===========================================
+    -- GRAPHICS (Integrated GPU)
+    -- ===========================================
+    has_integrated_gpu BOOLEAN DEFAULT FALSE,
+    integrated_gpu_name VARCHAR(100),        -- e.g., "Intel UHD 770"
+    gpu_base_frequency INT,                  -- MHz
+    gpu_boost_frequency INT,                 -- MHz
+    gpu_execution_units INT,                 -- EU count
+    gpu_shaders INT,                         -- Shader count
+    gpu_fp32_tflops DECIMAL(6,2),            -- FP32 performance
+    
+    -- ===========================================
+    -- PCI EXPRESS
+    -- ===========================================
+    pcie_version VARCHAR(10),                -- e.g., "5.0"
+    pcie_lanes INT,                          -- Total lanes
+    pcie_config VARCHAR(100),                -- e.g., "1x16 or 2x8"
+    
+    -- ===========================================
+    -- STATUS & METADATA
+    -- ===========================================
     is_released BOOLEAN DEFAULT TRUE,
     is_discontinued BOOLEAN DEFAULT FALSE,
-
-    -- Metadata
     image_url VARCHAR(255),
     techpowerup_url VARCHAR(255),
+    intel_ark_url VARCHAR(255),
+    amd_url VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
+    
+    -- Foreign keys
     FOREIGN KEY (manufacturer_id) REFERENCES manufacturers(id),
     FOREIGN KEY (family_id) REFERENCES cpu_families(id),
     FOREIGN KEY (socket_id) REFERENCES sockets(id),
-
+    
+    -- Indexes
     INDEX idx_manufacturer (manufacturer_id),
-    INDEX idx_name (name),
+    INDEX idx_socket (socket_id),
     INDEX idx_cores (cores),
     INDEX idx_launch_date (launch_date)
 );
 
--- Benchmarks table (for future use)
-CREATE TABLE IF NOT EXISTS benchmarks (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    description TEXT,
-    unit VARCHAR(50),
-    higher_is_better BOOLEAN DEFAULT TRUE
-);
+-- ============================================
+-- BENCHMARKS TABLE
+-- ============================================
 
--- CPU Benchmark scores
 CREATE TABLE IF NOT EXISTS cpu_benchmarks (
     id INT AUTO_INCREMENT PRIMARY KEY,
     cpu_id INT NOT NULL,
-    benchmark_id INT NOT NULL,
-    score DECIMAL(12,2),
+    
+    -- Cinebench R23
+    cinebench_r23_single INT,
+    cinebench_r23_multi INT,
+    
+    -- Cinebench R24
+    cinebench_r24_single INT,
+    cinebench_r24_multi INT,
+    
+    -- Geekbench 6
+    geekbench6_single INT,
+    geekbench6_multi INT,
+    
+    -- 3DMark
+    _3dmark_cpu_profile_single INT,
+    _3dmark_cpu_profile_max INT,
+    _3dmark_timespy_cpu INT,
+    
+    -- PassMark
+    passmark_single INT,
+    passmark_multi INT,
+    
+    -- Video Encoding (Handbrake - time in seconds, lower is better)
+    handbrake_h264_1080p INT,
+    handbrake_h265_4k INT,
+    
+    -- 3D Rendering (Blender - time in seconds)
+    blender_classroom INT,
+    blender_monster INT,
+    
+    -- File Compression (7-Zip - MIPS score)
+    _7zip_compression INT,
+    _7zip_decompression INT,
+    
+    -- Web Browsing
+    speedometer_score DECIMAL(8,2),
+    
+    -- Metadata
+    benchmark_date DATE,
+    source VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
     FOREIGN KEY (cpu_id) REFERENCES cpus(id) ON DELETE CASCADE,
-    FOREIGN KEY (benchmark_id) REFERENCES benchmarks(id),
-    UNIQUE KEY unique_cpu_benchmark (cpu_id, benchmark_id)
+    UNIQUE KEY unique_cpu_benchmark (cpu_id)
 );
 
--- Insert default manufacturers
-INSERT INTO manufacturers (name) VALUES
+-- ============================================
+-- GAMING PERFORMANCE TABLE
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS cpu_gaming_performance (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cpu_id INT NOT NULL,
+    game_name VARCHAR(100) NOT NULL,
+    
+    -- Test configuration
+    resolution VARCHAR(20),                  -- e.g., "1080p", "1440p", "4K"
+    graphics_preset VARCHAR(50),             -- e.g., "Ultra", "High"
+    gpu_used VARCHAR(100),                   -- GPU used in test
+    
+    -- Performance metrics
+    avg_fps DECIMAL(6,2),                    -- Average FPS
+    fps_1_percent DECIMAL(6,2),              -- 1% low FPS
+    fps_01_percent DECIMAL(6,2),             -- 0.1% low FPS
+    min_fps DECIMAL(6,2),                    -- Minimum FPS
+    max_fps DECIMAL(6,2),                    -- Maximum FPS
+    
+    -- Metadata
+    test_date DATE,
+    source VARCHAR(100),
+    source_url VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (cpu_id) REFERENCES cpus(id) ON DELETE CASCADE,
+    INDEX idx_game (game_name),
+    INDEX idx_cpu_game (cpu_id, game_name)
+);
+
+-- ============================================
+-- PRICE HISTORY TABLE
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS cpu_price_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cpu_id INT NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    retailer VARCHAR(100),
+    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (cpu_id) REFERENCES cpus(id) ON DELETE CASCADE,
+    INDEX idx_cpu_date (cpu_id, recorded_at)
+);
+
+-- ============================================
+-- USER FAVORITES (for app)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS user_favorites (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    device_id VARCHAR(100) NOT NULL,
+    cpu_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (cpu_id) REFERENCES cpus(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_device_cpu (device_id, cpu_id)
+);
+
+-- ============================================
+-- INSERT DEFAULT MANUFACTURERS
+-- ============================================
+
+INSERT IGNORE INTO manufacturers (name) VALUES
+    ('Intel'),
     ('AMD'),
-    ('Intel')
-ON DUPLICATE KEY UPDATE name = name;
-
--- Insert common sockets
-INSERT INTO sockets (name, manufacturer_id, release_year) VALUES
-    -- AMD Sockets
-    ('AM4', 1, 2016),
-    ('AM5', 1, 2022),
-    ('TR4', 1, 2017),
-    ('sTRX4', 1, 2019),
-    ('sWRX8', 1, 2019),
-    ('SP3', 1, 2017),
-    -- Intel Sockets
-    ('LGA 1200', 2, 2020),
-    ('LGA 1700', 2, 2021),
-    ('LGA 1851', 2, 2024),
-    ('LGA 2066', 2, 2017),
-    ('LGA 4189', 2, 2021),
-    ('LGA 4677', 2, 2023)
-ON DUPLICATE KEY UPDATE name = name;
-
--- Insert sample CPU families
-INSERT INTO cpu_families (manufacturer_id, name, codename, generation) VALUES
-    -- AMD Families
-    (1, 'Ryzen 9', 'Raphael', '7000 Series'),
-    (1, 'Ryzen 7', 'Raphael', '7000 Series'),
-    (1, 'Ryzen 5', 'Raphael', '7000 Series'),
-    (1, 'Ryzen 9', 'Vermeer', '5000 Series'),
-    (1, 'Ryzen 7', 'Vermeer', '5000 Series'),
-    (1, 'Ryzen 5', 'Vermeer', '5000 Series'),
-    -- Intel Families
-    (2, 'Core i9', 'Raptor Lake', '13th/14th Gen'),
-    (2, 'Core i7', 'Raptor Lake', '13th/14th Gen'),
-    (2, 'Core i5', 'Raptor Lake', '13th/14th Gen'),
-    (2, 'Core Ultra 9', 'Arrow Lake', '200 Series'),
-    (2, 'Core Ultra 7', 'Arrow Lake', '200 Series'),
-    (2, 'Core Ultra 5', 'Arrow Lake', '200 Series');
-
--- Insert some sample CPUs for testing
-INSERT INTO cpus (
-    name, manufacturer_id, family_id, socket_id, codename, generation,
-    cores, threads, p_cores, e_cores, base_clock, boost_clock,
-    l1_cache, l2_cache, l3_cache, tdp, process_node,
-    memory_type, memory_channels, max_memory_gb,
-    has_integrated_gpu, integrated_gpu_name, pcie_version, pcie_lanes,
-    launch_date, launch_msrp, is_released
-) VALUES
-    -- AMD Ryzen 9 7950X
-    ('AMD Ryzen 9 7950X', 1, 1, 2, 'Raphael', 'Zen 4',
-     16, 32, NULL, NULL, 4500, 5700,
-     1024, 16384, 65536, 170, '5nm',
-     'DDR5-5200', 2, 128,
-     TRUE, 'AMD Radeon Graphics', '5.0', 24,
-     '2022-09-27', 699.00, TRUE),
-
-    -- AMD Ryzen 7 7800X3D
-    ('AMD Ryzen 7 7800X3D', 1, 2, 2, 'Raphael', 'Zen 4',
-     8, 16, NULL, NULL, 4200, 5000,
-     512, 8192, 104857, 120, '5nm',
-     'DDR5-5200', 2, 128,
-     TRUE, 'AMD Radeon Graphics', '5.0', 24,
-     '2023-04-06', 449.00, TRUE),
-
-    -- AMD Ryzen 5 7600X
-    ('AMD Ryzen 5 7600X', 1, 3, 2, 'Raphael', 'Zen 4',
-     6, 12, NULL, NULL, 4700, 5300,
-     384, 6144, 32768, 105, '5nm',
-     'DDR5-5200', 2, 128,
-     TRUE, 'AMD Radeon Graphics', '5.0', 24,
-     '2022-09-27', 299.00, TRUE),
-
-    -- AMD Ryzen 9 5950X
-    ('AMD Ryzen 9 5950X', 1, 4, 1, 'Vermeer', 'Zen 3',
-     16, 32, NULL, NULL, 3400, 4900,
-     1024, 8192, 65536, 105, '7nm',
-     'DDR4-3200', 2, 128,
-     FALSE, NULL, '4.0', 24,
-     '2020-11-05', 799.00, TRUE),
-
-    -- Intel Core i9-14900K
-    ('Intel Core i9-14900K', 2, 7, 8, 'Raptor Lake Refresh', '14th Gen',
-     24, 32, 8, 16, 3200, 6000,
-     2176, 32768, 36864, 253, 'Intel 7',
-     'DDR4-3200, DDR5-5600', 2, 192,
-     TRUE, 'Intel UHD Graphics 770', '5.0', 20,
-     '2023-10-17', 589.00, TRUE),
-
-    -- Intel Core i7-14700K
-    ('Intel Core i7-14700K', 2, 8, 8, 'Raptor Lake Refresh', '14th Gen',
-     20, 28, 8, 12, 3400, 5600,
-     1664, 28672, 33792, 253, 'Intel 7',
-     'DDR4-3200, DDR5-5600', 2, 192,
-     TRUE, 'Intel UHD Graphics 770', '5.0', 20,
-     '2023-10-17', 409.00, TRUE),
-
-    -- Intel Core i5-14600K
-    ('Intel Core i5-14600K', 2, 9, 8, 'Raptor Lake Refresh', '14th Gen',
-     14, 20, 6, 8, 3500, 5300,
-     1152, 20480, 24576, 181, 'Intel 7',
-     'DDR4-3200, DDR5-5600', 2, 192,
-     TRUE, 'Intel UHD Graphics 770', '5.0', 20,
-     '2023-10-17', 319.00, TRUE),
-
-    -- Intel Core Ultra 9 285K
-    ('Intel Core Ultra 9 285K', 2, 10, 9, 'Arrow Lake', 'Core Ultra 200',
-     24, 24, 8, 16, 3700, 5700,
-     2176, 40960, 36864, 125, 'Intel 3',
-     'DDR5-6400', 2, 192,
-     FALSE, NULL, '5.0', 20,
-     '2024-10-24', 589.00, TRUE);
-
--- Insert common benchmarks
-INSERT INTO benchmarks (name, description, unit, higher_is_better) VALUES
-    ('Cinebench R23 Single', 'Single-threaded CPU rendering test', 'pts', TRUE),
-    ('Cinebench R23 Multi', 'Multi-threaded CPU rendering test', 'pts', TRUE),
-    ('Geekbench 6 Single', 'Single-core performance benchmark', 'pts', TRUE),
-    ('Geekbench 6 Multi', 'Multi-core performance benchmark', 'pts', TRUE),
-    ('PassMark Single', 'PassMark single-thread rating', 'pts', TRUE),
-    ('PassMark Multi', 'PassMark multi-thread rating', 'pts', TRUE);
+    ('Apple'),
+    ('Qualcomm'),
+    ('MediaTek'),
+    ('NVIDIA'),
+    ('ARM'),
+    ('Samsung'),
+    ('VIA'),
+    ('Other');
