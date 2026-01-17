@@ -1,23 +1,81 @@
+# =============================================================================
 # HardWizChippy Scraper Dependencies
-# Core
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-lxml>=5.0.0
+# "Triple Threat Merge" Data Pipeline
+# =============================================================================
 
+# -----------------------------------------------------------------------------
+# Core Web Scraping
+# -----------------------------------------------------------------------------
+requests>=2.31.0               # HTTP client for simple requests
+beautifulsoup4>=4.12.0         # HTML parsing
+lxml>=5.0.0                    # Fast XML/HTML parser
+httpx>=0.27.0                  # Modern async HTTP client
+
+# -----------------------------------------------------------------------------
+# JavaScript-Rendered Pages (Playwright)
+# -----------------------------------------------------------------------------
+# Required for: NanoReview, TechPowerUp dynamic content
+playwright>=1.40.0             # Browser automation
+greenlet>=3.0.0                # Playwright dependency
+
+# -----------------------------------------------------------------------------
 # Database
-mysql-connector-python>=8.0.0
+# -----------------------------------------------------------------------------
+mysql-connector-python>=8.0.0  # MySQL/MariaDB connector
+SQLAlchemy>=2.0.0              # ORM (optional, for complex queries)
 
-# JavaScript-rendered pages (Tom's Hardware)
-playwright>=1.40.0
+# -----------------------------------------------------------------------------
+# Fuzzy Matching (TheFuzz - The Core of Triple-Threat!)
+# -----------------------------------------------------------------------------
+thefuzz>=0.22.0                # Fuzzy string matching (formerly fuzzywuzzy)
+python-Levenshtein>=0.25.0     # Fast Levenshtein distance (speedup for TheFuzz)
+rapidfuzz>=3.6.0               # Ultra-fast fuzzy matching alternative
 
-# Fuzzy matching
-python-Levenshtein>=0.21.0
+# -----------------------------------------------------------------------------
+# Data Processing
+# -----------------------------------------------------------------------------
+pandas>=2.0.0                  # Data manipulation
+numpy>=1.24.0                  # Numerical operations
 
-# Retry logic
-tenacity>=8.2.0
+# -----------------------------------------------------------------------------
+# Retry & Rate Limiting
+# -----------------------------------------------------------------------------
+tenacity>=8.2.0                # Retry logic with exponential backoff
+ratelimit>=2.2.1               # Rate limiting decorator
 
-# Progress bars
-tqdm>=4.66.0
+# -----------------------------------------------------------------------------
+# Progress & Logging
+# -----------------------------------------------------------------------------
+tqdm>=4.66.0                   # Progress bars
+rich>=13.7.0                   # Rich terminal output
+colorlog>=6.8.0                # Colored logging
 
-# Environment config
-python-dotenv>=1.0.0
+# -----------------------------------------------------------------------------
+# Configuration & Environment
+# -----------------------------------------------------------------------------
+python-dotenv>=1.0.0           # Environment variable management
+pydantic>=2.5.0                # Data validation
+pydantic-settings>=2.1.0       # Settings management
+
+# -----------------------------------------------------------------------------
+# Testing & Development
+# -----------------------------------------------------------------------------
+pytest>=8.0.0                  # Testing framework
+pytest-asyncio>=0.23.0         # Async test support
+pytest-playwright>=0.4.0       # Playwright test fixtures
+
+# -----------------------------------------------------------------------------
+# JSON Export & Schema Validation
+# -----------------------------------------------------------------------------
+jsonschema>=4.21.0             # JSON schema validation
+orjson>=3.9.0                  # Fast JSON serialization
+
+# =============================================================================
+# Installation Commands:
+# =============================================================================
+# pip install -r requirements.txt
+# playwright install chromium
+# 
+# For development:
+# pip install -r requirements.txt -e .
+# =============================================================================
