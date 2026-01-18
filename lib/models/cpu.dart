@@ -1,21 +1,31 @@
+/// CPU Model - Schema v5 "Triple Threat Merge"
+///
+/// Supports data from:
+/// - Source A: TechPowerUp (Nerd Specs)
+/// - Source B: NanoReview (Benchmarks & Gaming)
+/// - Source C: Intel ARK / AMD (General Info)
 class Cpu {
   final int id;
   final String name;
+  final String? nameNormalized;
   final String? codename;
   final String? generation;
   final int? cores;
   final int? threads;
   final int? pCores;
   final int? eCores;
+  final int? lpCores; // Low-power cores (Arrow Lake+)
   final double? baseClock;
   final double? boostClock;
   final double? pCoreBaseClock;
   final double? pCoreBoostClock;
   final double? eCoreBaseClock;
   final double? eCoreBoostClock;
+  final double? allCoreBoost;
   final int? l1Cache;
   final int? l2Cache;
   final int? l3Cache;
+  final double? l3CacheMb; // L3 in MB for modern CPUs
   final int? tdp;
   final int? basePower;
   final int? maxTurboPower;
@@ -30,11 +40,14 @@ class Cpu {
   final String? pcieVersion;
   final int? pcieLanes;
   final String? launchDate;
+  final String? launchQuarter; // e.g., "Q4'2024"
   final double? launchMsrp;
   final bool isReleased;
   final bool isDiscontinued;
   final String? imageUrl;
   final String? techpowerupUrl;
+  final String? nanoreviewUrl;
+  final String? intelArkUrl;
   final String? manufacturerName;
   final String? manufacturerLogo;
   final String? socketName;
@@ -43,7 +56,20 @@ class Cpu {
   final String? familyCodename;
   final List<CpuBenchmark>? benchmarks;
 
-  // New fields for enhanced data
+  // =========================================================================
+  // NERD SPECS (TechPowerUp - "The Big Part")
+  // =========================================================================
+  final bool isMcm; // Multi-Chip Module
+  final int? mcmChipletCount;
+  final String? mcmConfig; // e.g., "2x CCD + 1x IOD"
+  final String? voltageRange; // e.g., "0.65V - 1.45V"
+  final double? maxVoltage;
+  final double? minVoltage;
+  final String? foundry; // TSMC, Intel, Samsung
+
+  // =========================================================================
+  // ENHANCED FIELDS
+  // =========================================================================
   final double? currentPrice;
   final String? microarchitecture;
   final String? coreStepping;
@@ -60,27 +86,39 @@ class Cpu {
   final int? graphicsTurboFreq;
   final String? graphicsCoreConfig;
   final String? pcieConfig;
+  final String? marketSegment; // desktop, laptop, server, etc.
+  final String? status; // announced, launched, available, eol, legacy
+  final String? productCode; // Intel/AMD product code
+
+  // =========================================================================
+  // BENCHMARKS & GAMING (NanoReview)
+  // =========================================================================
   final CpuBenchmarks? structuredBenchmarks;
   final List<GamingBenchmark>? gamingBenchmarks;
+  final GamingAggregate? gamingAggregate; // NanoReview's 5-game average
 
   Cpu({
     required this.id,
     required this.name,
+    this.nameNormalized,
     this.codename,
     this.generation,
     this.cores,
     this.threads,
     this.pCores,
     this.eCores,
+    this.lpCores,
     this.baseClock,
     this.boostClock,
     this.pCoreBaseClock,
     this.pCoreBoostClock,
     this.eCoreBaseClock,
     this.eCoreBoostClock,
+    this.allCoreBoost,
     this.l1Cache,
     this.l2Cache,
     this.l3Cache,
+    this.l3CacheMb,
     this.tdp,
     this.basePower,
     this.maxTurboPower,
@@ -95,11 +133,14 @@ class Cpu {
     this.pcieVersion,
     this.pcieLanes,
     this.launchDate,
+    this.launchQuarter,
     this.launchMsrp,
     this.isReleased = true,
     this.isDiscontinued = false,
     this.imageUrl,
     this.techpowerupUrl,
+    this.nanoreviewUrl,
+    this.intelArkUrl,
     this.manufacturerName,
     this.manufacturerLogo,
     this.socketName,
@@ -107,7 +148,15 @@ class Cpu {
     this.familyName,
     this.familyCodename,
     this.benchmarks,
-    // New fields
+    // Nerd Specs
+    this.isMcm = false,
+    this.mcmChipletCount,
+    this.mcmConfig,
+    this.voltageRange,
+    this.maxVoltage,
+    this.minVoltage,
+    this.foundry,
+    // Enhanced fields
     this.currentPrice,
     this.microarchitecture,
     this.coreStepping,
@@ -124,60 +173,186 @@ class Cpu {
     this.graphicsTurboFreq,
     this.graphicsCoreConfig,
     this.pcieConfig,
+    this.marketSegment,
+    this.status,
+    this.productCode,
+    // Benchmarks & Gaming
     this.structuredBenchmarks,
     this.gamingBenchmarks,
+    this.gamingAggregate,
   });
 
+  /// Factory constructor with comprehensive null-safety.
+  /// Handles missing data gracefully - the "iJB Secret" approach.
   factory Cpu.fromJson(Map<String, dynamic> json) {
     return Cpu(
-      id: json['id'] as int,
-      name: json['name'] as String,
+      id: json['id'] as int? ?? 0,
+      name: json['name'] as String? ?? 'Unknown CPU',
+      nameNormalized: json['name_normalized'] as String?,
       codename: json['codename'] as String?,
       generation: json['generation'] as String?,
-      cores: json['cores'] as int?,
-      threads: json['threads'] as int?,
-      pCores: json['p_cores'] as int?,
-      eCores: json['e_cores'] as int?,
-      baseClock: (json['base_clock'] as num?)?.toDouble(),
-      boostClock: (json['boost_clock'] as num?)?.toDouble(),
-      pCoreBaseClock: (json['p_core_base_clock'] as num?)?.toDouble(),
-      pCoreBoostClock: (json['p_core_boost_clock'] as num?)?.toDouble(),
-      eCoreBaseClock: (json['e_core_base_clock'] as num?)?.toDouble(),
-      eCoreBoostClock: (json['e_core_boost_clock'] as num?)?.toDouble(),
-      l1Cache: json['l1_cache'] as int?,
-      l2Cache: json['l2_cache'] as int?,
-      l3Cache: json['l3_cache'] as int?,
-      tdp: json['tdp'] as int?,
-      basePower: json['base_power'] as int?,
-      maxTurboPower: json['max_turbo_power'] as int?,
+      cores: _parseInt(json['cores']),
+      threads: _parseInt(json['threads']),
+      pCores: _parseInt(json['p_cores']),
+      eCores: _parseInt(json['e_cores']),
+      lpCores: _parseInt(json['lp_cores']),
+      baseClock: _parseDouble(json['base_clock']),
+      boostClock: _parseDouble(json['boost_clock']),
+      pCoreBaseClock: _parseDouble(json['p_core_base_clock']),
+      pCoreBoostClock: _parseDouble(json['p_core_boost_clock']),
+      eCoreBaseClock: _parseDouble(json['e_core_base_clock']),
+      eCoreBoostClock: _parseDouble(json['e_core_boost_clock']),
+      allCoreBoost: _parseDouble(json['all_core_boost_ghz']),
+      l1Cache: _parseInt(json['l1_cache']),
+      l2Cache: _parseInt(json['l2_cache']),
+      l3Cache: _parseInt(json['l3_cache']),
+      l3CacheMb: _parseDouble(json['l3_cache_mb']),
+      tdp: _parseInt(json['tdp']),
+      basePower: _parseInt(json['base_power']),
+      maxTurboPower: _parseInt(json['max_turbo_power']),
       processNode: json['process_node'] as String?,
-      transistorsMillion: json['transistors_million'] as int?,
-      dieSizeMm2: (json['die_size_mm2'] as num?)?.toDouble(),
+      transistorsMillion: _parseInt(json['transistors_million']),
+      dieSizeMm2: _parseDouble(json['die_size_mm2']),
       memoryType: json['memory_type'] as String?,
-      memoryChannels: json['memory_channels'] as int?,
-      maxMemoryGb: json['max_memory_gb'] as int?,
+      memoryChannels: _parseInt(json['memory_channels']),
+      maxMemoryGb: _parseInt(json['max_memory_gb']),
       hasIntegratedGpu: json['has_integrated_gpu'] as bool? ?? false,
       integratedGpuName: json['integrated_gpu_name'] as String?,
       pcieVersion: json['pcie_version'] as String?,
-      pcieLanes: json['pcie_lanes'] as int?,
+      pcieLanes: _parseInt(json['pcie_lanes']),
       launchDate: json['launch_date'] as String?,
-      launchMsrp: (json['launch_msrp'] as num?)?.toDouble(),
+      launchQuarter: json['launch_quarter'] as String?,
+      launchMsrp: _parseDouble(json['launch_msrp']),
       isReleased: json['is_released'] as bool? ?? true,
       isDiscontinued: json['is_discontinued'] as bool? ?? false,
       imageUrl: json['image_url'] as String?,
       techpowerupUrl: json['techpowerup_url'] as String?,
+      nanoreviewUrl: json['nanoreview_url'] as String?,
+      intelArkUrl: json['intel_ark_url'] as String?,
       manufacturerName: json['manufacturer_name'] as String?,
       manufacturerLogo: json['manufacturer_logo'] as String?,
       socketName: json['socket_name'] as String?,
-      socketReleaseYear: json['socket_release_year'] as int?,
+      socketReleaseYear: _parseInt(json['socket_release_year']),
       familyName: json['family_name'] as String?,
       familyCodename: json['family_codename'] as String?,
-      benchmarks: json['benchmarks'] != null
-          ? (json['benchmarks'] as List)
-              .map((b) => CpuBenchmark.fromJson(b))
-              .toList()
+      benchmarks: _parseBenchmarkList(json['benchmarks']),
+      // Nerd Specs (TechPowerUp)
+      isMcm: json['is_mcm'] as bool? ?? false,
+      mcmChipletCount: _parseInt(json['mcm_chiplet_count']),
+      mcmConfig: json['mcm_config'] as String?,
+      voltageRange: json['voltage_range'] as String?,
+      maxVoltage: _parseDouble(json['max_voltage']),
+      minVoltage: _parseDouble(json['min_voltage']),
+      foundry: json['foundry'] as String?,
+      // Enhanced fields
+      currentPrice: _parseDouble(json['current_price']),
+      microarchitecture: json['microarchitecture'] as String?,
+      coreStepping: json['core_stepping'] as String?,
+      multiplier: _parseDouble(json['base_multiplier']),
+      turboMultiplier: _parseDouble(json['turbo_multiplier']),
+      unlockedMultiplier:
+          json['unlocked_multiplier'] as bool? ??
+          json['is_unlocked'] as bool? ??
+          false,
+      l1CacheInstruction: _parseInt(json['l1_cache_instruction']),
+      l1CacheData: _parseInt(json['l1_cache_data']),
+      fabProcessor: json['fab_processor'] as String?,
+      dataWidth: _parseInt(json['data_width']),
+      memoryBandwidth: _parseDouble(json['memory_bandwidth']),
+      eccSupported:
+          json['ecc_supported'] as bool? ??
+          json['ecc_support'] as bool? ??
+          false,
+      graphicsBaseFreq:
+          _parseInt(json['graphics_base_freq']) ??
+          _parseInt(json['igpu_base_mhz']),
+      graphicsTurboFreq:
+          _parseInt(json['graphics_turbo_freq']) ??
+          _parseInt(json['igpu_boost_mhz']),
+      graphicsCoreConfig: json['graphics_core_config'] as String?,
+      pcieConfig: json['pcie_config'] as String?,
+      marketSegment: json['market_segment'] as String?,
+      status: json['status'] as String?,
+      productCode: json['product_code'] as String?,
+      // Structured Benchmarks (NanoReview)
+      structuredBenchmarks: json['structured_benchmarks'] != null
+          ? CpuBenchmarks.fromJson(
+              json['structured_benchmarks'] as Map<String, dynamic>,
+            )
           : null,
+      // Gaming benchmarks list
+      gamingBenchmarks: _parseGamingList(json['gaming_benchmarks']),
+      // Gaming aggregate (NanoReview 5-game average)
+      gamingAggregate: json['gaming_aggregate'] != null
+          ? GamingAggregate.fromJson(
+              json['gaming_aggregate'] as Map<String, dynamic>,
+            )
+          : _parseGamingAggregateFromList(json['gaming_benchmarks']),
     );
+  }
+
+  // =========================================================================
+  // HELPER METHODS FOR SAFE PARSING
+  // =========================================================================
+
+  /// Safely parse int from various types
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  /// Safely parse double from various types
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Parse benchmark list with null safety
+  static List<CpuBenchmark>? _parseBenchmarkList(dynamic value) {
+    if (value == null) return null;
+    if (value is! List) return null;
+    try {
+      return value
+          .map((b) => CpuBenchmark.fromJson(b as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Parse gaming benchmark list with null safety
+  static List<GamingBenchmark>? _parseGamingList(dynamic value) {
+    if (value == null) return null;
+    if (value is! List) return null;
+    try {
+      return value
+          .map((g) => GamingBenchmark.fromJson(g as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Extract gaming aggregate from gaming benchmarks list (fallback)
+  static GamingAggregate? _parseGamingAggregateFromList(dynamic value) {
+    if (value == null) return null;
+    if (value is! List || value.isEmpty) return null;
+    try {
+      // Try to find 1080p entry
+      final entry = value.firstWhere(
+        (g) => g['resolution'] == '1080p',
+        orElse: () => value.first,
+      );
+      return GamingAggregate.fromJson(entry as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -207,11 +382,13 @@ class Cpu {
   }
 
   // Helper methods
-  String get formattedBaseClock =>
-      baseClock != null ? '${(baseClock! / 1000).toStringAsFixed(2)} GHz' : 'N/A';
+  String get formattedBaseClock => baseClock != null
+      ? '${(baseClock! / 1000).toStringAsFixed(2)} GHz'
+      : 'N/A';
 
-  String get formattedBoostClock =>
-      boostClock != null ? '${(boostClock! / 1000).toStringAsFixed(2)} GHz' : 'N/A';
+  String get formattedBoostClock => boostClock != null
+      ? '${(boostClock! / 1000).toStringAsFixed(2)} GHz'
+      : 'N/A';
 
   String get formattedL3Cache {
     if (l3Cache == null) return 'N/A';
@@ -238,11 +415,54 @@ class Cpu {
 
   bool get isHybrid => pCores != null && eCores != null;
 
-  bool get isAmd =>
-      manufacturerName?.toLowerCase() == 'amd';
+  bool get isAmd => manufacturerName?.toLowerCase() == 'amd';
 
-  bool get isIntel =>
-      manufacturerName?.toLowerCase() == 'intel';
+  bool get isIntel => manufacturerName?.toLowerCase() == 'intel';
+
+  // =========================================================================
+  // NERD SPECS HELPERS (The "Big Part" Display)
+  // =========================================================================
+
+  /// Check if nerd specs data is available
+  bool get hasNerdSpecs => transistorsMillion != null || dieSizeMm2 != null;
+
+  /// Formatted transistor count
+  String get formattedTransistors {
+    if (transistorsMillion == null) return 'N/A';
+    if (transistorsMillion! >= 1000) {
+      return '${(transistorsMillion! / 1000).toStringAsFixed(1)} Billion';
+    }
+    return '$transistorsMillion Million';
+  }
+
+  /// Formatted die size
+  String get formattedDieSize {
+    if (dieSizeMm2 == null) return 'N/A';
+    return '${dieSizeMm2!.toStringAsFixed(0)} mm²';
+  }
+
+  /// MCM display string
+  String get mcmDisplay {
+    if (!isMcm) return 'Monolithic';
+    if (mcmConfig != null && mcmConfig!.isNotEmpty) return mcmConfig!;
+    if (mcmChipletCount != null) return '$mcmChipletCount Chiplets';
+    return 'Multi-Chip';
+  }
+
+  /// Check if benchmarks are available
+  bool get hasBenchmarks =>
+      structuredBenchmarks != null && structuredBenchmarks!.hasData;
+
+  /// Check if gaming data is available
+  bool get hasGamingData =>
+      gamingAggregate != null && gamingAggregate!.hasData ||
+      (gamingBenchmarks != null && gamingBenchmarks!.isNotEmpty);
+
+  /// Get primary benchmark (Cinebench R23 Multi) for quick comparison
+  int? get primaryBenchmark => structuredBenchmarks?.cinebenchR23Multi;
+
+  /// Get gaming score for quick comparison
+  int? get primaryGamingScore => gamingAggregate?.gamingScore;
 }
 
 class CpuBenchmark {
@@ -370,20 +590,31 @@ class PaginatedResponse<T> {
   bool get hasMore => currentPage < totalPages;
 }
 
-/// Structured benchmark scores
+/// Structured benchmark scores from NanoReview/NotebookCheck
 class CpuBenchmarks {
+  // Cinebench R23
   final int? cinebenchR23Single;
   final int? cinebenchR23Multi;
+  // Cinebench R24
   final int? cinebenchR24Single;
   final int? cinebenchR24Multi;
+  // Geekbench 6
   final int? geekbench6Single;
   final int? geekbench6Multi;
+  // PassMark
   final int? passmarkSingle;
   final int? passmarkMulti;
-  final int? threeDMark;
-  final double? handbrakeVideo;
-  final int? sevenZipCompression;
-  final double? speedometerWeb;
+  // 3DMark
+  final int? threeDMarkTimespyCpu;
+  // Content Creation
+  final int? handbrakeH264;
+  final int? handbrakeH265;
+  final int? blenderClassroom;
+  // Productivity
+  final int? sevenZipCompress;
+  final int? sevenZipDecompress;
+  // Web
+  final double? speedometerScore;
 
   CpuBenchmarks({
     this.cinebenchR23Single,
@@ -394,28 +625,88 @@ class CpuBenchmarks {
     this.geekbench6Multi,
     this.passmarkSingle,
     this.passmarkMulti,
-    this.threeDMark,
-    this.handbrakeVideo,
-    this.sevenZipCompression,
-    this.speedometerWeb,
+    this.threeDMarkTimespyCpu,
+    this.handbrakeH264,
+    this.handbrakeH265,
+    this.blenderClassroom,
+    this.sevenZipCompress,
+    this.sevenZipDecompress,
+    this.speedometerScore,
   });
 
+  /// Null-safe factory that handles nested structure from export
   factory CpuBenchmarks.fromJson(Map<String, dynamic> json) {
+    // Handle nested structure: {"cinebench_r23": {"single": 123, "multi": 456}}
+    final cb23 = json['cinebench_r23'] as Map<String, dynamic>?;
+    final cb24 = json['cinebench_r24'] as Map<String, dynamic>?;
+    final gb6 = json['geekbench6'] as Map<String, dynamic>?;
+    final pm = json['passmark'] as Map<String, dynamic>?;
+    final dm = json['3dmark'] as Map<String, dynamic>?;
+    final cc = json['content_creation'] as Map<String, dynamic>?;
+    final prod = json['productivity'] as Map<String, dynamic>?;
+
     return CpuBenchmarks(
-      cinebenchR23Single: json['cinebench_r23_single'] as int?,
-      cinebenchR23Multi: json['cinebench_r23_multi'] as int?,
-      cinebenchR24Single: json['cinebench_r24_single'] as int?,
-      cinebenchR24Multi: json['cinebench_r24_multi'] as int?,
-      geekbench6Single: json['geekbench6_single'] as int?,
-      geekbench6Multi: json['geekbench6_multi'] as int?,
-      passmarkSingle: json['passmark_single'] as int?,
-      passmarkMulti: json['passmark_multi'] as int?,
-      threeDMark: json['3dmark'] as int?,
-      handbrakeVideo: (json['handbrake_video'] as num?)?.toDouble(),
-      sevenZipCompression: json['7zip_compression'] as int?,
-      speedometerWeb: (json['speedometer_web'] as num?)?.toDouble(),
+      // Try nested first, then flat
+      cinebenchR23Single:
+          _parseInt(cb23?['single']) ?? _parseInt(json['cinebench_r23_single']),
+      cinebenchR23Multi:
+          _parseInt(cb23?['multi']) ?? _parseInt(json['cinebench_r23_multi']),
+      cinebenchR24Single:
+          _parseInt(cb24?['single']) ?? _parseInt(json['cinebench_r24_single']),
+      cinebenchR24Multi:
+          _parseInt(cb24?['multi']) ?? _parseInt(json['cinebench_r24_multi']),
+      geekbench6Single:
+          _parseInt(gb6?['single']) ?? _parseInt(json['geekbench6_single']),
+      geekbench6Multi:
+          _parseInt(gb6?['multi']) ?? _parseInt(json['geekbench6_multi']),
+      passmarkSingle:
+          _parseInt(pm?['single']) ?? _parseInt(json['passmark_single']),
+      passmarkMulti:
+          _parseInt(pm?['multi']) ?? _parseInt(json['passmark_multi']),
+      threeDMarkTimespyCpu:
+          _parseInt(dm?['timespy_cpu']) ??
+          _parseInt(json['3dmark']) ??
+          _parseInt(json['timespy_cpu']),
+      handbrakeH264:
+          _parseInt(cc?['handbrake_h264']) ??
+          _parseInt(json['handbrake_video']?.toInt()),
+      handbrakeH265: _parseInt(cc?['handbrake_h265']),
+      blenderClassroom: _parseInt(cc?['blender_classroom']),
+      sevenZipCompress:
+          _parseInt(prod?['zip_compress']) ??
+          _parseInt(json['7zip_compression']),
+      sevenZipDecompress: _parseInt(prod?['zip_decompress']),
+      speedometerScore: _parseDouble(json['speedometer_web']),
     );
   }
+
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Check if any benchmark data exists
+  bool get isEmpty =>
+      cinebenchR23Single == null &&
+      cinebenchR23Multi == null &&
+      cinebenchR24Single == null &&
+      cinebenchR24Multi == null &&
+      geekbench6Single == null &&
+      geekbench6Multi == null;
+
+  /// Check if benchmarks have data
+  bool get hasData => !isEmpty;
 }
 
 /// Gaming benchmark data for a single game
@@ -440,13 +731,87 @@ class GamingBenchmark {
 
   factory GamingBenchmark.fromJson(Map<String, dynamic> json) {
     return GamingBenchmark(
-      gameName: json['game'] as String? ?? json['game_name'] as String,
-      resolution: json['resolution'] as String,
+      gameName:
+          json['game'] as String? ??
+          json['game_name'] as String? ??
+          'Unknown Game',
+      resolution: json['resolution'] as String? ?? '1080p',
       settings: json['settings'] as String?,
-      avgFps: (json['avg_fps'] as num).toDouble(),
-      onePercentLow: (json['1_low'] as num?)?.toDouble(),
-      pointOnePercentLow: (json['0.1_low'] as num?)?.toDouble(),
+      avgFps: _parseDouble(json['avg_fps']) ?? 0.0,
+      onePercentLow:
+          _parseDouble(json['1_low']) ?? _parseDouble(json['fps_1_percent']),
+      pointOnePercentLow:
+          _parseDouble(json['0.1_low']) ?? _parseDouble(json['fps_01_percent']),
       gpuUsed: json['gpu'] as String? ?? json['gpu_used'] as String?,
     );
   }
+
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+}
+
+/// Gaming aggregate data from NanoReview (5-game average)
+/// This is the "Gaming FPS" section for modern CPUs
+class GamingAggregate {
+  final String resolution;
+  final String? gpuUsed;
+  final double? avgFps;
+  final double? fps1Percent;
+  final double? fps01Percent;
+  final int? gamingScore; // NanoReview's gaming score (0-100)
+
+  GamingAggregate({
+    required this.resolution,
+    this.gpuUsed,
+    this.avgFps,
+    this.fps1Percent,
+    this.fps01Percent,
+    this.gamingScore,
+  });
+
+  factory GamingAggregate.fromJson(Map<String, dynamic> json) {
+    return GamingAggregate(
+      resolution:
+          json['resolution'] as String? ??
+          json['test_resolution'] as String? ??
+          '1080p',
+      gpuUsed: json['gpu_used'] as String? ?? json['test_gpu'] as String?,
+      avgFps: _parseDouble(json['avg_fps']),
+      fps1Percent: _parseDouble(json['fps_1_percent']),
+      fps01Percent: _parseDouble(json['fps_01_percent']),
+      gamingScore: _parseInt(json['gaming_score']),
+    );
+  }
+
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static double? _parseDouble(dynamic value) {
+    if (value == null) return null;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value);
+    return null;
+  }
+
+  /// Check if any gaming data exists
+  bool get hasData => avgFps != null || gamingScore != null;
+
+  /// Format average FPS for display
+  String get formattedAvgFps =>
+      avgFps != null ? '${avgFps!.toStringAsFixed(1)} FPS' : 'N/A';
+
+  /// Format 1% low for display
+  String get formatted1PercentLow =>
+      fps1Percent != null ? '${fps1Percent!.toStringAsFixed(1)} FPS' : 'N/A';
 }
